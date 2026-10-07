@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -38,10 +40,15 @@ def interpret_code(request: CodeRequest):
         }
 
     # 3. If execution failed, ask AI to identify error lines
-    error_lines = analyze_error_with_ai(
-        request.code,
-        execution["output"],
-    )
+    try:
+        error_lines = analyze_error_with_ai(
+            request.code,
+            execution["output"],
+        )
+    except Exception:
+        # AI down/quota/retired model: fall back to the traceback instead of a CORS-less 500
+        lines = re.findall(r'File "<string>", line (\d+)', execution["output"])
+        error_lines = [int(lines[-1])] if lines else []
 
     # 4. Return the exact execution output + AI error lines
     return {
